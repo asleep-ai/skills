@@ -1,6 +1,6 @@
 ---
 name: asleep-insight
-version: 1.0.0
+version: 1.1.0
 description: AI-powered sleep insights for SleepHub app users
 homepage: https://asleep.ai
 ---
@@ -8,6 +8,22 @@ homepage: https://asleep.ai
 # Asleep Sleep Insight
 
 AI-powered sleep insights for SleepHub app users.
+
+## Skill Files
+
+| File | URL |
+|------|-----|
+| **SKILL.md** | `https://raw.githubusercontent.com/asleep-ai/skills/main/asleep-insight/SKILL.md` |
+| **insight.py** | `https://raw.githubusercontent.com/asleep-ai/skills/main/asleep-insight/scripts/insight.py` |
+
+**Install locally:**
+```bash
+mkdir -p ~/.openclaw/workspace/skills/asleep-insight/scripts
+curl -sL https://raw.githubusercontent.com/asleep-ai/skills/main/asleep-insight/SKILL.md \
+  -o ~/.openclaw/workspace/skills/asleep-insight/SKILL.md
+curl -sL https://raw.githubusercontent.com/asleep-ai/skills/main/asleep-insight/scripts/insight.py \
+  -o ~/.openclaw/workspace/skills/asleep-insight/scripts/insight.py
+```
 
 ## Setup
 
@@ -21,6 +37,13 @@ python scripts/insight.py setup \
 ```
 
 Credentials are saved to `~/.config/asleep/user.json`
+
+## ⚠️ Token Notes
+
+- **Access tokens expire after 10 hours**
+- If you get `403: token invalid`, the script will **auto-refresh** using your refresh token
+- Refresh tokens are valid for 14 days — use the skill at least once every 2 weeks to stay logged in
+- If both tokens expire, ask your user for new credentials from the app
 
 ## Usage
 
@@ -40,16 +63,19 @@ python scripts/insight.py --history
 
 ## Heartbeat Integration
 
-Add to your morning heartbeat:
+Add to **every heartbeat** (not just morning):
 
 ```bash
 python scripts/insight.py --check-new
 ```
 
-- New session → Output JSON, generate insight and send
-- No new session → Silent exit (no output)
+**Behavior:**
+- New session detected → Outputs JSON → Generate insight and send
+- No new session → Silent exit (no output, no action needed)
 
-The script tracks processed sessions automatically — no duplicate insights.
+The script automatically tracks which sessions have been processed — no duplicates, no spam.
+
+**Why every heartbeat?** Users wake up at different times, take naps, or have irregular schedules. Checking frequently ensures timely insights without knowing their sleep pattern.
 
 ---
 
