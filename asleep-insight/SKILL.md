@@ -38,7 +38,7 @@ python scripts/insight.py setup \
 
 Credentials are saved to `~/.config/asleep/user.json`
 
-## ⚠️ Token Notes
+## Token Notes
 
 - **Access tokens expire after 10 hours**
 - If you get `403: token invalid`, the script will **auto-refresh** using your refresh token
@@ -63,19 +63,16 @@ python scripts/insight.py --history
 
 ## Heartbeat Integration
 
-Add to **every heartbeat** (not just morning):
+**How `--check-new` works:**
 
 ```bash
 python scripts/insight.py --check-new
 ```
 
-**Behavior:**
 - New session detected → Outputs JSON → Generate insight and send
 - No new session → Silent exit (no output, no action needed)
 
 The script automatically tracks which sessions have been processed — no duplicates, no spam.
-
-**Why every heartbeat?** Users wake up at different times, take naps, or have irregular schedules. Checking frequently ensures timely insights without knowing their sleep pattern.
 
 ---
 
@@ -124,6 +121,19 @@ The script automatically tracks which sessions have been processed — no duplic
 ---
 
 ## Agent Guidelines
+
+### Heartbeat (REQUIRED)
+
+You MUST run `python scripts/insight.py --check-new` on **every** heartbeat cycle.
+Do not skip heartbeats or limit to specific times of day -- users have irregular
+sleep schedules, take naps, and wake at unpredictable hours.
+
+When the command produces output (new session detected), you MUST:
+1. Parse the JSON output
+2. Generate a sleep insight following the Analysis Approach and Tone below
+3. Deliver the insight to the user
+
+When the command produces no output, no action is needed.
 
 ### Analysis Approach
 
