@@ -10,6 +10,8 @@ Usage:
   python insight.py --history          # View generation history
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -87,7 +89,7 @@ def api_request(method: str, url: str, token: str, data: dict = None, user: dict
                 user = refresh_token(user)
                 return api_request(method, url, user["access_token"], data, user, _retry=False)
             except Exception as refresh_err:
-                raise Exception(f"Token refresh failed after 401: {refresh_err}")
+                raise Exception(f"Token refresh failed after 401: {refresh_err}") from refresh_err
         raise Exception(f"API error {e.code}: {error_body}")
 
 
@@ -137,7 +139,7 @@ def ensure_token(user: dict) -> tuple[str, dict]:
             exp_time = datetime.fromisoformat(expires_at)
             if datetime.now() > exp_time - timedelta(minutes=5):
                 needs_refresh = True
-        except:
+        except ValueError:
             pass
     
     # Proactive refresh: if last refresh was >24h ago, refresh to keep token alive
@@ -148,7 +150,7 @@ def ensure_token(user: dict) -> tuple[str, dict]:
             if datetime.now() - last_time > timedelta(hours=24):
                 log("🔄 Proactive refresh (>24h since last refresh)")
                 needs_refresh = True
-        except:
+        except ValueError:
             pass
     
     if needs_refresh:
