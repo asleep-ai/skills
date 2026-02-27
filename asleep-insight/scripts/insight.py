@@ -10,6 +10,8 @@ Usage:
   python insight.py --history          # View generation history
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -65,8 +67,8 @@ def save_history(data: dict):
     HISTORY_FILE.write_text(json.dumps(data, indent=2))
 
 
-def api_request(method: str, url: str, token: str, data: dict = None) -> dict:
-    """Make API request"""
+def api_request(method: str, url: str, token: str, data: dict = None, user: dict = None, _retry: bool = True) -> dict:
+    """Make API request with automatic 401 retry"""
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -80,6 +82,14 @@ def api_request(method: str, url: str, token: str, data: dict = None) -> dict:
             return json.loads(resp.read().decode())
     except HTTPError as e:
         error_body = e.read().decode() if e.fp else ""
+        # 401 Unauthorized → refresh and retry once
+        if e.code == 401 and user and _retry:
+            log("⚠️ 401 Unauthorized, attempting token refresh...")
+            try:
+                user = refresh_token(user)
+                return api_request(method, url, user["access_token"], data, user, _retry=False)
+            except Exception as refresh_err:
+                raise Exception(f"Token refresh failed after 401: {refresh_err}") from refresh_err
         raise Exception(f"API error {e.code}: {error_body}")
 
 
@@ -101,6 +111,7 @@ def refresh_token(user: dict) -> dict:
         token_data = result.get("result", result)
         user["access_token"] = token_data["access_token"]
         user["refresh_token"] = token_data["refresh_token"]
+        user["last_refresh_at"] = datetime.now().isoformat()  # Track refresh time
         
         if "expires_in" in token_data:
             expires_at = datetime.now() + timedelta(seconds=token_data["expires_in"])
@@ -114,24 +125,41 @@ def refresh_token(user: dict) -> dict:
         raise Exception(f"Token refresh failed: {e.code}")
 
 
-def ensure_token(user: dict) -> str:
-    """Return valid token (refresh if needed)"""
+def ensure_token(user: dict) -> tuple[str, dict]:
+    """Return valid token (refresh if needed). Returns (token, updated_user)"""
     if not user.get("access_token"):
         raise Exception("No access_token. Run 'setup' first.")
     
+    needs_refresh = False
+    
+    # Check if token is about to expire
     expires_at = user.get("token_expires_at")
     if expires_at:
         try:
             exp_time = datetime.fromisoformat(expires_at)
             if datetime.now() > exp_time - timedelta(minutes=5):
-                user = refresh_token(user)
-        except:
+                needs_refresh = True
+        except ValueError:
             pass
     
-    return user["access_token"]
+    # Proactive refresh: if last refresh was >24h ago, refresh to keep token alive
+    last_refresh = user.get("last_refresh_at")
+    if last_refresh:
+        try:
+            last_time = datetime.fromisoformat(last_refresh)
+            if datetime.now() - last_time > timedelta(hours=24):
+                log("🔄 Proactive refresh (>24h since last refresh)")
+                needs_refresh = True
+        except ValueError:
+            pass
+    
+    if needs_refresh:
+        user = refresh_token(user)
+    
+    return user["access_token"], user
 
 
-def fetch_sleep_data(user_id: str, token: str, days: int = 7) -> dict:
+def fetch_sleep_data(user_id: str, token: str, days: int = 7, user: dict = None) -> dict:
     """Fetch sleep data from API"""
     end_date = datetime.now().strftime("%Y-%m-%d")
     start_date = (datetime.now() - timedelta(days=days-1)).strftime("%Y-%m-%d")
@@ -141,7 +169,7 @@ def fetch_sleep_data(user_id: str, token: str, days: int = 7) -> dict:
         f"?start_date={start_date}&end_date={end_date}&timezone=Asia/Seoul"
     )
     
-    return api_request("GET", url, token)
+    return api_request("GET", url, token, user=user)
 
 
 def parse_datetime(dt_str: str) -> datetime:
@@ -473,10 +501,10 @@ def cmd_insight(args):
         sys.exit(1)
     
     log("🔐 Checking token...")
-    token = ensure_token(user)
+    token, user = ensure_token(user)
     
     log(f"📊 Fetching {args.days} days of sleep data...")
-    raw_data = fetch_sleep_data(user_id, token, args.days)
+    raw_data = fetch_sleep_data(user_id, token, args.days, user)
     
     # Extract session_ids first (for check-new)
     api_result = raw_data.get("result", {})
