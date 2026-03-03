@@ -1,6 +1,6 @@
 ---
 name: asleep-insight
-version: 1.1.0
+version: 1.2.0
 description: AI-powered sleep insights for SleepHub app users
 homepage: https://asleep.ai
 ---
@@ -9,7 +9,46 @@ homepage: https://asleep.ai
 
 AI-powered sleep insights for SleepHub app users.
 
-## Skill Files
+## ⚡ Quick Start: Heartbeat Setup
+
+**This skill requires periodic checking.** After installing, add this to your `HEARTBEAT.md`:
+
+### Add to HEARTBEAT.md
+
+```markdown
+### Step 0: Sleep Check (REQUIRED)
+
+Every heartbeat, run:
+```bash
+python3 ~/.openclaw/workspace/skills/asleep-insight/scripts/insight.py --check-new
+```
+
+| Output | Action |
+|--------|--------|
+| JSON (new session) | Analyze and report with interpretation |
+| No output | Silent — don't mention |
+
+When new session detected:
+1. Report sleep score & key metrics
+2. Explain WHY it was good/bad
+3. Mention weekly trend
+4. Give improvement advice if needed
+```
+
+### What to Report
+
+| Output exists | No output |
+|---------------|-----------|
+| Score + metrics | Skip silently |
+| Why good/bad (root cause) | Don't mention "no new session" |
+| Weekly trend | |
+| Advice if needed | |
+
+---
+
+## Installation
+
+### Skill Files
 
 | File | URL |
 |------|-----|
@@ -25,7 +64,7 @@ curl -sL https://raw.githubusercontent.com/asleep-ai/skills/main/asleep-insight/
   -o ~/.openclaw/workspace/skills/asleep-insight/scripts/insight.py
 ```
 
-## Setup
+### Credentials Setup
 
 Get your credentials from the SleepHub app, then run:
 
@@ -38,12 +77,14 @@ python scripts/insight.py setup \
 
 Credentials are saved to `~/.config/asleep/user.json`
 
-## Token Notes
+### Token Notes
 
 - **Access tokens expire after 10 hours**
 - If you get `403: token invalid`, the script will **auto-refresh** using your refresh token
 - Refresh tokens are valid for 14 days — use the skill at least once every 2 weeks to stay logged in
 - If both tokens expire, ask your user for new credentials from the app
+
+---
 
 ## Usage
 
@@ -60,19 +101,6 @@ python scripts/insight.py --days=14
 # View generation history
 python scripts/insight.py --history
 ```
-
-## Heartbeat Integration
-
-**How `--check-new` works:**
-
-```bash
-python scripts/insight.py --check-new
-```
-
-- New session detected → Outputs JSON → Generate insight and send
-- No new session → Silent exit (no output, no action needed)
-
-The script automatically tracks which sessions have been processed — no duplicates, no spam.
 
 ---
 
@@ -122,25 +150,71 @@ The script automatically tracks which sessions have been processed — no duplic
 
 ## Agent Guidelines
 
-### Heartbeat (REQUIRED)
+### Score Interpretation
 
-You MUST run `python scripts/insight.py --check-new` on **every** heartbeat cycle.
-Do not skip heartbeats or limit to specific times of day -- users have irregular
-sleep schedules, take naps, and wake at unpredictable hours.
+| Score | Rating | What to Say |
+|-------|--------|-------------|
+| 90-100 | Excellent | 🔥 Great night! Keep this pattern |
+| 80-89 | Good | ✅ Solid sleep, good condition |
+| 70-79 | Fair | ⚠️ Okay but room for improvement |
+| 60-69 | Poor | 😴 Fatigue risk, try sleeping earlier |
+| <60 | Very Poor | 🚨 Serious concern, review habits |
 
-When the command produces output (new session detected), you MUST:
-1. Parse the JSON output
-2. Generate a sleep insight following the Analysis Approach and Tone below
-3. Deliver the insight to the user
+### Root Cause Analysis
 
-When the command produces no output, no action is needed.
+Always explain **WHY** the score is good or bad:
 
-### Analysis Approach
+| Factor | Good Sign | Warning Sign |
+|--------|-----------|--------------|
+| **Bedtime** | Consistent, before 1am | >2am or irregular |
+| **Total Sleep** | 7-9 hours | <6h or >10h |
+| **Sleep Efficiency** | ≥90% | <85% (awake too much) |
+| **Sleep Latency** | 5-15 mins | >30 mins (trouble falling asleep) |
+| **Deep Sleep** | ≥1 hour | <30 mins |
 
-1. **Key findings first** — Lead with the most important insight
-2. **Data-driven** — Always cite specific numbers
-3. **Trends over snapshots** — Focus on patterns, not single nights
-4. **Actionable advice** — Give 1-2 practical suggestions
+**Example reasoning:**
+- Score 77, total sleep 5h 47m → "Short on sleep time"
+- Score 88, efficiency 96% → "High efficiency, slept soundly!"
+- Latency 3 mins → "Fell asleep almost instantly"
+
+### Weekly Trend Patterns
+
+| Pattern | Detection | Response |
+|---------|-----------|----------|
+| **Improving** | 3+ days rising | "Getting better! 🔥" |
+| **Declining** | 3+ days falling | "Watch out for fatigue ⚠️" |
+| **Volatile** | Swings ±15+ | "Irregular sleep pattern" |
+| **Stable** | Consistent | "Maintaining steady pattern" |
+
+Always mention where today fits: "Week: 83→77→73→88→**77**"
+
+### Example Outputs
+
+**Good night (Score 88):**
+```
+🌙 Sleep Score: 88 ✅
+
+Bedtime 00:30, Wake 08:15
+Total 7h 30m, Efficiency 96%
+
+Highlights: High efficiency + 1h 20m deep sleep!
+Week: 77→73→88 (improving 🔥)
+
+💤 Keep this up!
+```
+
+**Concerning night (Score 67):**
+```
+🌙 Sleep Score: 67 ⚠️
+
+Bedtime 03:15, Wake 09:00
+Total 5h 12m, Efficiency 78%
+
+Issues: Late bedtime + short duration
+Week: 88→77→67 (declining 📉)
+
+💡 Try sleeping earlier tonight!
+```
 
 ### Reference Ranges
 
