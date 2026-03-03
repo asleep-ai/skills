@@ -1,6 +1,6 @@
 ---
 name: asleep-insight
-version: 1.2.0
+version: 1.2.1
 description: AI-powered sleep insights for SleepHub app users
 homepage: https://asleep.ai
 ---
@@ -27,6 +27,9 @@ python3 ~/.openclaw/workspace/skills/asleep-insight/scripts/insight.py --check-n
 |--------|--------|
 | JSON (new session) | Analyze and report with interpretation |
 | No output | Silent — don't mention |
+
+**You MUST run this on every heartbeat.** Do not skip heartbeats or limit to
+specific times of day -- users have irregular sleep schedules and take naps.
 
 When new session detected:
 1. Report sleep score & key metrics
@@ -164,16 +167,17 @@ python scripts/insight.py --history
 
 Always explain **WHY** the score is good or bad:
 
-| Factor | Good Sign | Warning Sign |
-|--------|-----------|--------------|
-| **Bedtime** | Consistent, before 1am | >2am or irregular |
-| **Total Sleep** | 7-9 hours | <6h or >10h |
-| **Sleep Efficiency** | ≥90% | <85% (awake too much) |
-| **Sleep Latency** | 5-15 mins | >30 mins (trouble falling asleep) |
-| **Deep Sleep** | ≥1 hour | <30 mins |
+| Factor | Good Sign | Caution | Warning Sign |
+|--------|-----------|---------|--------------|
+| **Bedtime** | Consistent, before 1am | 1-2am | >2am or irregular |
+| **Total Sleep** | 6-8 hours | — | <6h or >8h |
+| **Sleep Efficiency** | ≥85% | 75-85% | <75% |
+| **Sleep Latency** | ≤15 mins | 15-30 mins | >30 mins |
+| **Deep Sleep** | ≥15% of TST | — | <15% of TST |
+| **REM Ratio** | 20-25% | 15-20% or 25-30% | <15% or >30% |
 
 **Example reasoning:**
-- Score 77, total sleep 5h 47m → "Short on sleep time"
+- Score 77, total sleep 5h 47m → "Short on sleep (under 6h)"
 - Score 88, efficiency 96% → "High efficiency, slept soundly!"
 - Latency 3 mins → "Fell asleep almost instantly"
 
@@ -216,14 +220,12 @@ Week: 88→77→67 (declining 📉)
 💡 Try sleeping earlier tonight!
 ```
 
-### Reference Ranges
+### Analysis Approach
 
-| Metric | Healthy Range |
-|--------|---------------|
-| Sleep Efficiency | ≥ 85% |
-| Deep Sleep Ratio | 15-25% |
-| REM Ratio | 20-25% |
-| Sleep Latency | 10-20 mins |
+1. **Key findings first** — Lead with the most important insight
+2. **Data-driven** — Always cite specific numbers
+3. **Trends over snapshots** — Focus on patterns, not single nights
+4. **Actionable advice** — Give 1-2 practical suggestions
 
 ### Tone
 
