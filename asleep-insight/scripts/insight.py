@@ -322,7 +322,14 @@ def calculate_delta(current: dict, previous: dict) -> dict:
     return delta
 
 
-def convert_sleep_data(data: dict) -> dict:
+def format_ratio_percent(value) -> str:
+    """Format ratio value to percentage string"""
+    if value is None:
+        return "N/A"
+    return f"{int(value * 100)}%"
+
+
+def convert_sleep_data(data: dict, include_breathing: bool = False) -> dict:
     """Convert API response to Asleep format"""
     api_result = data.get("result", {})
     sessions = sorted(
@@ -343,6 +350,17 @@ def convert_sleep_data(data: dict) -> dict:
         "rem_ratio": {"daily": []},
         "sleep_score": {"daily": []},
     }
+
+    if include_breathing:
+        result.update({
+            "time_in_stable_breath": {"daily": []},
+            "time_in_unstable_breath": {"daily": []},
+            "stable_breath_ratio": {"daily": []},
+            "unstable_breath_ratio": {"daily": []},
+            "breathing_index": {"daily": []},
+            "breathing_pattern": {"daily": []},
+            "unstable_breath_count": {"daily": []},
+        })
     
     if not sessions:
         return result
@@ -416,6 +434,52 @@ def convert_sleep_data(data: dict) -> dict:
             "type": "score",
         },
     }
+
+    if include_breathing:
+        data_mapping.update({
+            "time_in_stable_breath": {
+                "getter": lambda s: format_timedelta_to_str(s.get("time_in_stable_breath")),
+                "raw_getter": lambda s: s.get("time_in_stable_breath"),
+                "avg_getter": lambda a: format_timedelta_to_str(a.get("time_in_stable_breath")),
+                "type": "duration",
+            },
+            "time_in_unstable_breath": {
+                "getter": lambda s: format_timedelta_to_str(s.get("time_in_unstable_breath")),
+                "raw_getter": lambda s: s.get("time_in_unstable_breath"),
+                "avg_getter": lambda a: format_timedelta_to_str(a.get("time_in_unstable_breath")),
+                "type": "duration",
+            },
+            "stable_breath_ratio": {
+                "getter": lambda s: format_ratio_percent(s.get("stable_breath_ratio")),
+                "raw_getter": lambda s: s.get("stable_breath_ratio"),
+                "avg_getter": lambda a: format_ratio_percent(a.get("stable_breath_ratio")),
+                "type": "percentage",
+            },
+            "unstable_breath_ratio": {
+                "getter": lambda s: format_ratio_percent(s.get("unstable_breath_ratio")),
+                "raw_getter": lambda s: s.get("unstable_breath_ratio"),
+                "avg_getter": lambda a: format_ratio_percent(a.get("unstable_breath_ratio")),
+                "type": "percentage",
+            },
+            "breathing_index": {
+                "getter": lambda s: s.get("breathing_index"),
+                "raw_getter": lambda s: s.get("breathing_index"),
+                "avg_getter": lambda a: a.get("breathing_index"),
+                "type": "number",
+            },
+            "breathing_pattern": {
+                "getter": lambda s: s.get("breathing_pattern", "N/A"),
+                "raw_getter": lambda s: s.get("breathing_pattern"),
+                "avg_getter": None,
+                "type": "categorical",
+            },
+            "unstable_breath_count": {
+                "getter": lambda s: s.get("unstable_breath_count"),
+                "raw_getter": lambda s: s.get("unstable_breath_count"),
+                "avg_getter": lambda a: a.get("unstable_breath_count"),
+                "type": "number",
+            },
+        })
     
     # Generate daily data
     for session in filtered_sessions:
@@ -436,16 +500,19 @@ def convert_sleep_data(data: dict) -> dict:
     # Monthly average (if more than 1 session)
     if len(sessions) > 1 and avg_stats:
         for key, config in data_mapping.items():
-            if key == "sleep_score":
-                continue  # No month avg for sleep score
+            avg_getter = config.get("avg_getter")
+            if key == "sleep_score" or avg_getter is None:
+                continue  # No month avg for this metric
             try:
-                result[key]["month_avg"] = config["avg_getter"](avg_stats)
+                result[key]["month_avg"] = avg_getter(avg_stats)
             except:
                 result[key]["month_avg"] = "N/A"
     
     # Trend (if 3+ sessions)
     if len(filtered_sessions) >= 3:
         for key, config in data_mapping.items():
+            if config.get("type") == "categorical":
+                continue
             try:
                 raw_values = [config["raw_getter"](s) for s in filtered_sessions]
                 result[key]["trend"] = calculate_trend(raw_values)
@@ -473,13 +540,24 @@ def record_generation(history: dict, session_id: str, data: dict):
 
 def cmd_setup(args):
     """Save credentials"""
+    existing_user = load_user()
+    breathing_enabled = bool(existing_user.get("breathing_enabled"))
+
+    if args.enable_breathing:
+        breathing_enabled = True
+
     user = {
         "user_id": args.user_id,
         "access_token": args.access_token,
         "refresh_token": args.refresh_token,
     }
+    if breathing_enabled:
+        user["breathing_enabled"] = True
+
     save_user(user)
     log(f"✅ Setup complete! Config saved to {USER_FILE}")
+    if breathing_enabled:
+        log("Breathing metrics enabled.")
 
 
 def cmd_insight(args):
@@ -512,7 +590,7 @@ def cmd_insight(args):
     session_ids = [s.get("id") for s in sessions if s.get("id")]
     latest_session_id = session_ids[-1] if session_ids else None
     
-    sleep_stats = convert_sleep_data(raw_data)
+    sleep_stats = convert_sleep_data(raw_data, include_breathing=bool(user.get("breathing_enabled")))
     
     if args.check_new and not args.force:
         history = load_history()
@@ -539,6 +617,7 @@ def main():
     setup_parser.add_argument("--user-id", required=True, help="User ID")
     setup_parser.add_argument("--access-token", required=True, help="Access token")
     setup_parser.add_argument("--refresh-token", required=True, help="Refresh token")
+    setup_parser.add_argument("--enable-breathing", action="store_true", help=argparse.SUPPRESS)
     
     parser.add_argument("--days", type=int, default=7, help="Days to fetch (default: 7)")
     parser.add_argument("--check-new", action="store_true", help="Only output if new session")
