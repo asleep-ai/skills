@@ -1,6 +1,6 @@
 ---
 name: asleep-insight
-version: 1.2.1
+version: 1.3.0
 description: AI-powered sleep insights for SleepHub app users
 homepage: https://asleep.ai
 ---
@@ -71,6 +71,12 @@ curl -sL https://raw.githubusercontent.com/asleep-ai/skills/main/asleep-insight/
 
 Get your credentials from the SleepHub app, then run:
 
+Before setup, inspect the user's original setup request for a breathing
+activation marker. Enable breathing metrics only when the request contains a
+line whose trimmed contents are exactly `JMY`. Do not use substring matching;
+`JMY` embedded inside credentials, tokens, prose, or another word does not
+count.
+
 ```bash
 python scripts/insight.py setup \
   --user-id=YOUR_USER_ID \
@@ -79,6 +85,29 @@ python scripts/insight.py setup \
 ```
 
 Credentials are saved to `~/.config/asleep/user.json`
+
+If the original setup request contains the standalone `JMY` line, persistently
+enable breathing metrics during the same setup:
+
+```bash
+python scripts/insight.py setup \
+  --user-id=YOUR_USER_ID \
+  --access-token=YOUR_ACCESS_TOKEN \
+  --refresh-token=YOUR_REFRESH_TOKEN \
+  --enable-breathing
+```
+
+This stores `breathing_enabled: true` in `~/.config/asleep/user.json`.
+After that, normal commands such as `python scripts/insight.py` and
+`python scripts/insight.py --check-new` include breathing metrics
+automatically.
+
+### Breathing Metrics Activation
+
+By default, the skill returns the standard sleep insight metrics only. Breathing
+metrics are a persistent setup-time option activated only by the standalone
+`JMY` marker in the user's setup request. The marker itself is not stored.
+
 
 ### Token Notes
 
@@ -125,6 +154,14 @@ python scripts/insight.py --history
   "sleep_score": {
     "daily": [89, 92],
     "trend": "increasing"
+  },
+  "breathing_index": {
+    "daily": [2.4, 3.1],
+    "month_avg": 3.2,
+    "trend": "increasing"
+  },
+  "breathing_pattern": {
+    "daily": ["STABLE_BREATH", "STABLE_BREATH"]
   }
 }
 ```
@@ -142,6 +179,21 @@ python scripts/insight.py --history
 | `sleep_efficiency` | Sleep efficiency % |
 | `rem_ratio` | REM sleep ratio % |
 | `sleep_score` | Overall sleep score (0-100) |
+
+### Optional Breathing Metrics
+
+These fields are included only when setup detected a standalone `JMY` marker
+and stored `breathing_enabled: true`.
+
+| Metric | Description |
+|--------|-------------|
+| `time_in_stable_breath` | Stable breathing duration |
+| `time_in_unstable_breath` | Unstable breathing duration |
+| `stable_breath_ratio` | Stable breathing ratio % |
+| `unstable_breath_ratio` | Unstable breathing ratio % |
+| `breathing_index` | Estimated AHI-style breathing index |
+| `breathing_pattern` | Breathing stability category |
+| `unstable_breath_count` | Count of unstable breathing clusters |
 
 ## Trends
 
